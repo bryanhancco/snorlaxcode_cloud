@@ -81,7 +81,6 @@ def _classify_image_np(img: np.ndarray) -> Tuple[str, int, int, int]:
 	etiqueta = clasificar_color(r, g, b)
 	return etiqueta, r, g, b
 
-@tool
 def classify_image_bytes(data: bytes) -> Tuple[str, List[int]]:
 	"""Wrapper útil para routers: recibe bytes de imagen y devuelve (etiqueta, [r,g,b])."""
 	img = _read_image_from_bytes(data)
@@ -224,7 +223,6 @@ def detect_figure_from_frame(frame: np.ndarray) -> str:
 
 	return figura_detectada
 
-@tool
 def classify_figure_bytes(data: bytes) -> str:
 	"""Recibe bytes de imagen y devuelve el nombre de la figura detectada."""
 	img = _read_image_from_bytes(data)
@@ -295,7 +293,6 @@ def _prepare_digit_roi_from_mask(mask: np.ndarray, bbox: tuple) -> np.ndarray:
 	_, final_roi = cv2.threshold(final_roi, 127, 255, cv2.THRESH_BINARY)
 	return final_roi
 
-@tool
 def classify_number_bytes(data: bytes) -> tuple[int, float]:
 	"""Recibe bytes de imagen y devuelve (digit, confidence).
 
@@ -343,7 +340,6 @@ def classify_number_bytes(data: bytes) -> tuple[int, float]:
 
 
 # -------------------- Direction recognition (hand side) --------------------
-@tool
 def classify_direction_bytes(data: bytes) -> tuple[str, List[int]]:
 	"""Recibe bytes de imagen y devuelve ('Izquierda'|'Derecha', [cx,cy]).
 
