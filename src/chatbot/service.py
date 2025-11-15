@@ -11,6 +11,9 @@ from ..recognition.service import (
     classify_direction_bytes,
 )
 import os
+import base64
+from typing import Any
+
 load_dotenv(find_dotenv())
 
 google_api_key = os.environ.get('GOOGLE_API_KEY')
@@ -59,33 +62,62 @@ def tool_calling(message: str):
     # mapa de funciones locales (callables) que pueden ejecutarse cuando el LLM
     # solicita una función. Las claves deben coincidir con los nombres de las
     # declarations que se pasan al modelo.
+    # Wrappers: the LLM/tool protocol sends JSON-like arguments, not raw bytes.
+    # These wrappers expect a dict with key 'image_b64' containing a base64 string.
+    def _wrap_image_to_bytes_call(fn):
+        def _inner(args: dict[str, Any]):
+            # accept either direct base64 or nested values
+            if not isinstance(args, dict):
+                return {"error": "invalid arguments, expected object with 'image_b64'"}
+            b64 = args.get('image_b64') or args.get('image') or args.get('image_base64')
+            if not b64:
+                return {"error": "missing 'image_b64' in arguments"}
+            try:
+                img_bytes = base64.b64decode(b64)
+            except Exception as e:
+                return {"error": f"invalid base64 image: {e}"}
+            try:
+                result = fn(img_bytes)
+                # normalize result to JSON-serializable form
+                if isinstance(result, tuple) or isinstance(result, list):
+                    return list(result)
+                return result
+            except Exception as e:
+                return {"error": str(e)}
+        return _inner
+
     function_map = {
-        "colores": classify_image_bytes,
-        "figuras": classify_figure_bytes,
-        "numeros": classify_number_bytes,
-        "direccion": classify_direction_bytes,
+        "colores": _wrap_image_to_bytes_call(lambda b: classify_image_bytes(b)),
+        "figuras": _wrap_image_to_bytes_call(lambda b: classify_figure_bytes(b)),
+        "numeros": _wrap_image_to_bytes_call(lambda b: classify_number_bytes(b)),
+        "direccion": _wrap_image_to_bytes_call(lambda b: classify_direction_bytes(b)),
     }
 
     # Declaraciones de función para la API (schema que el modelo puede usar
     # para decidir hacer una llamada a función).
+    # function declarations — include parameters so the model knows to send a JSON object
     colores_fn = {
         "name": "colores",
-        "description": "Identificar color predominante en la imagen (usa classify_image_bytes).",
+        "description": "Identificar color predominante en la imagen (espera {'image_b64': '<base64>'}).",
+        "parameters": {"type": "object", "properties": {"image_b64": {"type": "string", "description": "Imagen codificada en base64"}}, "required": ["image_b64"]},
     }
 
     figuras_fn = {
         "name": "figuras",
-        "description": "Detectar figura geométrica en la imagen (usa classify_figure_bytes).",
+        "description": "Detectar figura geométrica en la imagen (espera {'image_b64': '<base64>'}).",
+        "parameters": {"type": "object", "properties": {"image_b64": {"type": "string"}}, "required": ["image_b64"]},
     }
 
     numeros_fn = {
         "name": "numeros",
-        "description": "Reconocer dígito en la imagen (usa classify_number_bytes).",
+        "description": "Reconocer dígito en la imagen (espera {'image_b64': '<base64>'}).",
+        "parameters": {"type": "object", "properties": {"image_b64": {"type": "string"}}, "required": ["image_b64"]},
     }
 
     direccion_fn = {
         "name": "direccion",
-        "description": "Determinar si la mano está a la izquierda o derecha (usa classify_direction_bytes).",
+        "description": "Determinar si la mano está a la izquierda o derecha (espera {'image_b64': '<base64>'}).",
+        "parameters": {"type": "object", "properties": {"image_b64": {"type": "string"}}, "required": ["image_b64"]},
     }
 
     client = genai.Client()
