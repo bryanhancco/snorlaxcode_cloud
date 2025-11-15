@@ -1,0 +1,15 @@
+fastapi
+uvicorn[standard]
+gunicorn
+pydantic
+langchain-google-genai
+langchain_community
+tiktoken
+google-generativeai
+langchain
+requests
+opencv-python-headless
+numpy
+tensorflow
+python-multipart
+dotenv
