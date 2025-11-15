@@ -1,7 +1,7 @@
 import cv2
 import numpy as np
 from typing import Tuple, List
-
+from langchain_core.tools import tool
 
 def clasificar_color(r: int, g: int, b: int) -> str:
 	"""Clasifica un color RGB en etiquetas simples (mismo comportamiento que antes)."""
@@ -81,7 +81,7 @@ def _classify_image_np(img: np.ndarray) -> Tuple[str, int, int, int]:
 	etiqueta = clasificar_color(r, g, b)
 	return etiqueta, r, g, b
 
-
+@tool
 def classify_image_bytes(data: bytes) -> Tuple[str, List[int]]:
 	"""Wrapper útil para routers: recibe bytes de imagen y devuelve (etiqueta, [r,g,b])."""
 	img = _read_image_from_bytes(data)
@@ -224,7 +224,7 @@ def detect_figure_from_frame(frame: np.ndarray) -> str:
 
 	return figura_detectada
 
-
+@tool
 def classify_figure_bytes(data: bytes) -> str:
 	"""Recibe bytes de imagen y devuelve el nombre de la figura detectada."""
 	img = _read_image_from_bytes(data)
@@ -295,7 +295,7 @@ def _prepare_digit_roi_from_mask(mask: np.ndarray, bbox: tuple) -> np.ndarray:
 	_, final_roi = cv2.threshold(final_roi, 127, 255, cv2.THRESH_BINARY)
 	return final_roi
 
-
+@tool
 def classify_number_bytes(data: bytes) -> tuple[int, float]:
 	"""Recibe bytes de imagen y devuelve (digit, confidence).
 
@@ -340,6 +340,48 @@ def classify_number_bytes(data: bytes) -> tuple[int, float]:
 	digit = int(np.argmax(preds))
 	confidence = float(np.max(preds))
 	return digit, confidence
+
+
+# -------------------- Direction recognition (hand side) --------------------
+@tool
+def classify_direction_bytes(data: bytes) -> tuple[str, List[int]]:
+	"""Recibe bytes de imagen y devuelve ('Izquierda'|'Derecha', [cx,cy]).
+
+	Basado en `first_module/features/direction_recognition/direction.py` pero
+	sin acceso a cámara: procesa una sola imagen y determina si la mano
+	está en la mitad izquierda o derecha del frame.
+	"""
+	img = _read_image_from_bytes(data)
+	h, w = img.shape[:2]
+
+	# Convertir a HSV y enmascarar color de piel (rango aproximado)
+	hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+	lower_skin = np.array([0, 20, 70], dtype=np.uint8)
+	upper_skin = np.array([20, 255, 255], dtype=np.uint8)
+	mask = cv2.inRange(hsv, lower_skin, upper_skin)
+
+	# Suavizar para reducir ruido
+	mask = cv2.GaussianBlur(mask, (5, 5), 0)
+
+	# Encontrar contornos
+	contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+	if not contours:
+		raise ValueError('No se detectó ninguna mano')
+
+	# Seleccionar la mano más grande y filtrar ruido
+	max_contour = max(contours, key=cv2.contourArea)
+	if cv2.contourArea(max_contour) <= 1000:
+		raise ValueError('Mano demasiado pequeña o ruido')
+
+	M = cv2.moments(max_contour)
+	if M.get('m00', 0) == 0:
+		raise ValueError('No se pudo calcular el centro de la mano')
+
+	cx = int(M['m10'] / M['m00'])
+	cy = int(M['m01'] / M['m00'])
+
+	side = "Izquierda" if cx < (w / 2) else "Derecha"
+	return side, [int(cx), int(cy)]
 
 
 # -------------------- Face detection / annotation --------------------

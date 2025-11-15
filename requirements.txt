@@ -13,3 +13,4 @@ numpy
 tensorflow-cpu
 python-multipart
 dotenv
+google-genai

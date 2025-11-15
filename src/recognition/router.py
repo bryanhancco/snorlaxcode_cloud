@@ -1,8 +1,21 @@
 from fastapi import APIRouter, File, UploadFile, HTTPException
 from fastapi.responses import JSONResponse
 
-from .service import classify_image_bytes, classify_figure_bytes, annotate_face_center_bytes, classify_number_bytes
-from .schema import ColorResponse, FigureResponse, NumberResponse, FaceResponse, FaceCoordsResponse
+from .service import (
+    classify_image_bytes,
+    classify_figure_bytes,
+    annotate_face_center_bytes,
+    classify_number_bytes,
+    classify_direction_bytes,
+)
+from .schema import (
+    ColorResponse,
+    FigureResponse,
+    NumberResponse,
+    FaceResponse,
+    FaceCoordsResponse,
+    DirectionResponse,
+)
 import base64
 
 
@@ -117,3 +130,21 @@ async def recognize_face_coords(file: UploadFile = File(...)):
         return {'found': True, 'x': int(x), 'y': int(y)}
     else:
         return {'found': False, 'x': None, 'y': None}
+
+
+@router.post('/direction', response_model=DirectionResponse)
+async def recognize_direction(file: UploadFile = File(...)):
+    """Endpoint que detecta la mano más grande y devuelve si está a la izquierda o derecha."""
+    try:
+        contents = await file.read()
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Error leyendo archivo: {e}")
+
+    try:
+        direction, center = classify_direction_bytes(contents)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error interno al procesar la imagen: {e}")
+
+    return JSONResponse(content={"direction": direction, "center": center})

@@ -36,3 +36,13 @@ class FaceCoordsResponse(BaseModel):
 	found: bool
 	x: int | None = None
 	y: int | None = None
+
+
+class DirectionResponse(BaseModel):
+	"""Respuesta para el servicio de reconocimiento de dirección de la mano.
+
+	- `direction`: "Izquierda" o "Derecha"
+	- `center`: coordenadas [x,y] del centro de la mano si se detectó
+	"""
+	direction: str
+	center: list[int] | None = None
